@@ -34,10 +34,11 @@ swift run
 ## Install as your preferred file manager
 
 ```bash
+./scripts/setup-local-signing.sh
 ./scripts/install-preferred.sh
 ```
 
-This builds a release `.app`, installs it in `/Applications`, adds it to the Dock, launches it, and registers it to open at login.
+The first command creates a signing identity in your login Keychain so macOS remembers folder permissions after local rebuilds. The installer builds a release `.app`, installs it in `/Applications`, adds it to the Dock, launches it, and registers it to open at login.
 
 macOS still requires Finder for the desktop, system file dialogs, and other operating-system tasks. This setup does not remove or modify Finder.
 
