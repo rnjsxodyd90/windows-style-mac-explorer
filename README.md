@@ -15,6 +15,7 @@ A native macOS file manager inspired by Windows 10 File Explorer. It brings the 
 - Windows-style animated row highlights on hover
 - Quick Look preview pane and file properties
 - New folder, rename, cut, copy, paste, move, trash, and zip
+- Native drag and drop between the explorer, folders, Finder, and other apps
 - Hidden-file and file-extension toggles
 - Native macOS file icons recolored to Windows-style yellow folders
 

@@ -28,3 +28,23 @@ import Testing
     model.zip([dir.appending(path: "b.txt").path])
     #expect(model.visible.map(\.name).last == "b.txt.zip")
 }
+
+@MainActor @Test func droppedFilesAreCopiedAndFoldersCannotBeDroppedIntoThemselves() async throws {
+    let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    let destination = root.appending(path: "Destination")
+    let source = root.appending(path: "source.txt")
+    try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+    try Data("dragged".utf8).write(to: source)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let model = Explorer(at: destination)
+    let provider = try #require(NSItemProvider(contentsOf: source))
+    #expect(await provider.loadFileURL() == source)
+    #expect(model.drop([source], into: destination))
+    #expect(model.visible.map(\.name) == ["source.txt"])
+    #expect(try String(contentsOf: destination.appending(path: "source.txt"), encoding: .utf8) == "dragged")
+
+    #expect(model.drop([source], into: destination))
+    #expect(model.visible.map(\.name) == ["source (2).txt", "source.txt"])
+    #expect(!model.drop([destination], into: destination))
+}

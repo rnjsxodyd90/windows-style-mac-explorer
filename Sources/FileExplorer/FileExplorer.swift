@@ -1,6 +1,7 @@
 import AppKit
 import Quartz
 import SwiftUI
+import UniformTypeIdentifiers
 
 @main
 struct FileExplorerApp: App {
@@ -33,6 +34,16 @@ extension FocusedValues {
     var explorer: Explorer? {
         get { self[ExplorerKey.self] }
         set { self[ExplorerKey.self] = newValue }
+    }
+}
+
+extension NSItemProvider {
+    func loadFileURL() async -> URL? {
+        await withCheckedContinuation { continuation in
+            loadObject(ofClass: NSURL.self) { object, _ in
+                continuation.resume(returning: (object as? NSURL).map { $0 as URL })
+            }
+        }
     }
 }
 
@@ -280,6 +291,18 @@ final class Explorer {
         place(ids.map { URL(fileURLWithPath: $0) }, in: folder, move: move)
     }
 
+    @discardableResult
+    func drop(_ sources: [URL], into folder: URL) -> Bool {
+        let destination = folder.standardizedFileURL.path
+        let accepted = sources.filter { source in
+            let path = source.standardizedFileURL.path
+            return path != destination && !destination.hasPrefix(path + "/")
+        }
+        guard !accepted.isEmpty else { return false }
+        place(accepted, in: folder, move: false)
+        return true
+    }
+
     private func place(_ sources: [URL], in folder: URL, move: Bool) {
         for source in sources where !(move && source.deletingLastPathComponent().path == folder.path) {
             let target = uniqueURL(source.lastPathComponent, in: folder)
@@ -343,6 +366,8 @@ struct ExplorerView: View {
     @State private var showPreviewPane = false
     @State private var showExtensions = true
     @State private var hoveredItem: FileItem.ID?
+    @State private var dropTarget: FileItem.ID?
+    @State private var droppingIntoCurrent = false
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -584,6 +609,16 @@ struct ExplorerView: View {
             }
         }
         .tableStyle(.inset(alternatesRowBackgrounds: false))
+        .onDrop(of: [.fileURL], isTargeted: $droppingIntoCurrent) { providers in
+            acceptDrop(providers, into: model.current)
+        }
+        .overlay {
+            if droppingIntoCurrent {
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(windowsBlue, lineWidth: 2)
+                    .allowsHitTesting(false)
+            }
+        }
         .contextMenu(forSelectionType: FileItem.ID.self) { ids in
             if ids.isEmpty {
                 Button("New folder", action: model.newFolder)
@@ -625,10 +660,42 @@ struct ExplorerView: View {
             .padding(.horizontal, 4)
             .background {
                 RoundedRectangle(cornerRadius: 3)
-                    .fill(windowsBlue.opacity(hoveredItem == item.id && !model.selection.contains(item.id) ? 0.10 : 0))
+                    .fill(windowsBlue.opacity(
+                        dropTarget == item.id ? 0.22 :
+                            hoveredItem == item.id && !model.selection.contains(item.id) ? 0.10 : 0
+                    ))
             }
             .contentShape(Rectangle())
-            .animation(.easeOut(duration: 0.12), value: hoveredItem == item.id)
+            .animation(.easeOut(duration: 0.12), value: hoveredItem == item.id || dropTarget == item.id)
+            .onDrag {
+                NSItemProvider(contentsOf: item.url) ?? NSItemProvider()
+            }
+            .onDrop(of: [.fileURL], isTargeted: Binding(
+                get: { dropTarget == item.id },
+                set: { targeted in
+                    guard item.isFolder else { return }
+                    if targeted {
+                        dropTarget = item.id
+                    } else if dropTarget == item.id {
+                        dropTarget = nil
+                    }
+                }
+            )) { providers in
+                item.isFolder && acceptDrop(providers, into: item.url)
+            }
+    }
+
+    private func acceptDrop(_ providers: [NSItemProvider], into folder: URL) -> Bool {
+        let providers = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
+        guard !providers.isEmpty else { return false }
+        Task {
+            var urls: [URL] = []
+            for provider in providers {
+                if let url = await provider.loadFileURL() { urls.append(url) }
+            }
+            model.drop(urls, into: folder)
+        }
+        return true
     }
 
     private var statusBar: some View {
