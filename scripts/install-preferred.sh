@@ -4,6 +4,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="/Applications/Windows Style Mac Explorer.app"
 
+if pgrep -f "$APP/Contents/MacOS/FileExplorer" >/dev/null; then
+    osascript -e 'tell application id "io.github.rnjsxodyd90.windows-style-mac-explorer" to quit' 2>/dev/null || true
+    sleep 1
+fi
+
 "$ROOT/scripts/build-app.sh" /Applications
 
 if ! osascript -e 'tell application "System Events" to exists login item "Windows Style Mac Explorer"' | grep -q true; then

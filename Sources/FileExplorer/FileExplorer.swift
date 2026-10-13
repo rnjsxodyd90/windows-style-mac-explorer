@@ -327,6 +327,7 @@ struct ExplorerView: View {
     @State private var showNavigationPane = true
     @State private var showPreviewPane = false
     @State private var showExtensions = true
+    @State private var hoveredItem: FileItem.ID?
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -524,27 +525,48 @@ struct ExplorerView: View {
     }
 
     private var fileTable: some View {
-        Table(model.visible, selection: $model.selection, sortOrder: $model.sortOrder) {
+        Table(of: FileItem.self, selection: $model.selection, sortOrder: $model.sortOrder) {
             TableColumn("Name", value: \.name) { item in
-                Label {
-                    Text(showExtensions || item.isFolder ? item.name : (item.name as NSString).deletingPathExtension)
-                } icon: {
-                    FileIcon(url: item.url)
+                hoverCell(item) {
+                    Label {
+                        Text(showExtensions || item.isFolder ? item.name : (item.name as NSString).deletingPathExtension)
+                    } icon: {
+                        FileIcon(url: item.url)
+                            .scaleEffect(hoveredItem == item.id ? 1.08 : 1)
+                    }
+                    .opacity(model.cut.contains(item.id) ? 0.5 : 1)
                 }
-                .opacity(model.cut.contains(item.id) ? 0.5 : 1)
             }
             .width(min: 180, ideal: 300)
             TableColumn("Date modified", value: \.modified) { item in
-                Text(item.modified.formatted(date: .numeric, time: .shortened))
+                hoverCell(item) {
+                    Text(item.modified.formatted(date: .numeric, time: .shortened))
+                }
             }
             .width(ideal: 140)
-            TableColumn("Type", value: \.kind)
-                .width(ideal: 140)
+            TableColumn("Type", value: \.kind) { item in
+                hoverCell(item) {
+                    Text(item.kind)
+                }
+            }
+            .width(ideal: 140)
             TableColumn("Size", value: \.size) { item in
-                Text(item.isFolder ? "" : item.size.formatted(.byteCount(style: .file)))
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                hoverCell(item, alignment: .trailing) {
+                    Text(item.isFolder ? "" : item.size.formatted(.byteCount(style: .file)))
+                }
             }
             .width(ideal: 80)
+        } rows: {
+            ForEach(model.visible) { item in
+                TableRow(item)
+                    .onHover { inside in
+                        if inside {
+                            hoveredItem = item.id
+                        } else if hoveredItem == item.id {
+                            hoveredItem = nil
+                        }
+                    }
+            }
         }
         .tableStyle(.inset(alternatesRowBackgrounds: false))
         .contextMenu(forSelectionType: FileItem.ID.self) { ids in
@@ -576,6 +598,22 @@ struct ExplorerView: View {
         .onCommand(#selector(NSText.copy(_:))) { model.copy(model.selection, cut: false) }
         .onCommand(#selector(NSText.paste(_:))) { model.paste() }
         .onDeleteCommand { model.trash(model.selection) }
+    }
+
+    private func hoverCell<Content: View>(
+        _ item: FileItem,
+        alignment: Alignment = .leading,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
+            .padding(.horizontal, 4)
+            .background {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(windowsBlue.opacity(hoveredItem == item.id && !model.selection.contains(item.id) ? 0.10 : 0))
+            }
+            .contentShape(Rectangle())
+            .animation(.easeOut(duration: 0.12), value: hoveredItem == item.id)
     }
 
     private var statusBar: some View {
