@@ -770,9 +770,17 @@ struct RibbonLabel: View {
 }
 
 struct NavigationPane: View {
+    private struct Selection: Hashable {
+        enum Section: Hashable { case quickAccess, iCloud, thisPC }
+
+        let section: Section
+        let path: String
+    }
+
     let model: Explorer
     @State private var quickAccessExpanded = true
     @State private var thisPCExpanded = true
+    @State private var selection: Selection?
 
     private static let home = FileManager.default.homeDirectoryForCurrentUser
     private static let iCloudDrive = home.appending(path: "Library/Mobile Documents/com~apple~CloudDocs")
@@ -781,10 +789,16 @@ struct NavigationPane: View {
         + [URL(fileURLWithPath: "/Applications")]
 
     var body: some View {
-        List(selection: Binding<String?>(get: { model.current.path }, set: { if let path = $0 { model.go(to: URL(fileURLWithPath: path)) } })) {
+        List(selection: Binding<Selection?>(
+            get: { activeSelection },
+            set: {
+                selection = $0
+                if let path = $0?.path { model.go(to: URL(fileURLWithPath: path)) }
+            }
+        )) {
             DisclosureGroup(isExpanded: $quickAccessExpanded) {
                 ForEach(model.pinned, id: \.self) { path in
-                    row(URL(fileURLWithPath: path))
+                    row(URL(fileURLWithPath: path), selection: Selection(section: .quickAccess, path: path))
                         .contextMenu {
                             Button("Unpin from Quick access") { model.pinned.removeAll { $0 == path } }
                         }
@@ -793,11 +807,11 @@ struct NavigationPane: View {
                 Label { Text("Quick access") } icon: { Image(systemName: "star.fill").foregroundStyle(windowsBlue) }
             }
             if FileManager.default.fileExists(atPath: Self.iCloudDrive.path) {
-                row(Self.iCloudDrive)
+                row(Self.iCloudDrive, selection: Selection(section: .iCloud, path: Self.iCloudDrive.path))
             }
             DisclosureGroup(isExpanded: $thisPCExpanded) {
-                ForEach(Self.places + (FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: nil, options: .skipHiddenVolumes) ?? []), id: \.self) {
-                    row($0)
+                ForEach(thisPCPlaces, id: \.self) {
+                    row($0, selection: Selection(section: .thisPC, path: $0.path))
                 }
             } label: {
                 Label { Text("This PC") } icon: { Image(systemName: "desktopcomputer").foregroundStyle(windowsBlue) }
@@ -808,9 +822,33 @@ struct NavigationPane: View {
         .background(Color(nsColor: .controlBackgroundColor))
     }
 
-    private func row(_ url: URL) -> some View {
+    private var thisPCPlaces: [URL] {
+        Self.places + (FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: nil, options: .skipHiddenVolumes) ?? [])
+    }
+
+    private var activeSelection: Selection? {
+        let path = model.current.path
+        if let selection, selection.path == path {
+            switch selection.section {
+            case .quickAccess where model.pinned.contains(path):
+                return selection
+            case .iCloud where path == Self.iCloudDrive.path:
+                return selection
+            case .thisPC where thisPCPlaces.contains(where: { $0.path == path }):
+                return selection
+            default:
+                break
+            }
+        }
+        if model.pinned.contains(path) { return Selection(section: .quickAccess, path: path) }
+        if path == Self.iCloudDrive.path { return Selection(section: .iCloud, path: path) }
+        if thisPCPlaces.contains(where: { $0.path == path }) { return Selection(section: .thisPC, path: path) }
+        return nil
+    }
+
+    private func row(_ url: URL, selection: Selection) -> some View {
         Label { Text(displayName(url)) } icon: { FileIcon(url: url) }
-            .tag(url.path)
+            .tag(selection)
     }
 }
 
