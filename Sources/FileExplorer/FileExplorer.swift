@@ -57,6 +57,11 @@ struct ExplorerCommands: Commands {
 // MARK: - Model
 
 struct FileItem: Identifiable {
+    static let resourceKeys: Set<URLResourceKey> = [
+        .isDirectoryKey, .isPackageKey, .contentModificationDateKey,
+        .localizedTypeDescriptionKey, .fileSizeKey,
+    ]
+
     let url: URL
     let name: String
     let isFolder: Bool
@@ -66,8 +71,7 @@ struct FileItem: Identifiable {
     var id: String { url.path }
 
     init(_ url: URL) {
-        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isPackageKey, .contentModificationDateKey, .localizedTypeDescriptionKey, .fileSizeKey]
-        let values = try? url.resolvingSymlinksInPath().resourceValues(forKeys: keys)
+        let values = try? url.resourceValues(forKeys: Self.resourceKeys)
         self.url = url
         name = url.lastPathComponent
         isFolder = values?.isDirectory == true && values?.isPackage != true
@@ -110,11 +114,18 @@ final class Explorer {
     }
     private(set) var back: [URL] = []
     private(set) var forward: [URL] = []
-    private(set) var items: [FileItem] = []
+    private(set) var items: [FileItem] = [] {
+        didSet { updateVisibleItems() }
+    }
+    private(set) var visible: [FileItem] = []
     private(set) var cut: Set<FileItem.ID> = []
     var selection: Set<FileItem.ID> = []
-    var sortOrder = [KeyPathComparator(\FileItem.name, comparator: String.StandardComparator.localizedStandard)]
-    var search = ""
+    var sortOrder = [KeyPathComparator(\FileItem.name, comparator: String.StandardComparator.localizedStandard)] {
+        didSet { updateVisibleItems() }
+    }
+    var search = "" {
+        didSet { updateVisibleItems() }
+    }
     var showHidden = false {
         didSet { reload() }
     }
@@ -131,16 +142,20 @@ final class Explorer {
         reload()
     }
 
-    var visible: [FileItem] {
+    private func updateVisibleItems() {
         let matches = search.isEmpty ? items : items.filter { $0.name.localizedCaseInsensitiveContains(search) }
         let sorted = matches.sorted(using: sortOrder)
-        return sorted.filter(\.isFolder) + sorted.filter { !$0.isFolder }
+        visible = sorted.filter(\.isFolder) + sorted.filter { !$0.isFolder }
     }
 
     func reload() {
         do {
             items = try FileManager.default
-                .contentsOfDirectory(at: current, includingPropertiesForKeys: nil, options: showHidden ? [] : .skipsHiddenFiles)
+                .contentsOfDirectory(
+                    at: current,
+                    includingPropertiesForKeys: Array(FileItem.resourceKeys),
+                    options: showHidden ? [] : .skipsHiddenFiles
+                )
                 .map(FileItem.init)
         } catch {
             items = []
@@ -531,7 +546,7 @@ struct ExplorerView: View {
                     Label {
                         Text(showExtensions || item.isFolder ? item.name : (item.name as NSString).deletingPathExtension)
                     } icon: {
-                        FileIcon(url: item.url)
+                        FileIcon(url: item.url, isFolder: item.isFolder)
                             .scaleEffect(hoveredItem == item.id ? 1.08 : 1)
                     }
                     .opacity(model.cut.contains(item.id) ? 0.5 : 1)
@@ -819,10 +834,10 @@ struct PropertiesView: View {
 struct FileIcon: View {
     let url: URL
     var size: CGFloat = 16
+    var isFolder: Bool?
 
     var body: some View {
-        let values = try? url.resolvingSymlinksInPath().resourceValues(forKeys: [.isDirectoryKey, .isPackageKey, .isVolumeKey])
-        let folder = values?.isDirectory == true && values?.isPackage != true && values?.isVolume != true
+        let folder = isFolder ?? folderFromResourceValues
         Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
             .resizable()
             .frame(width: size, height: size)
@@ -830,5 +845,10 @@ struct FileIcon: View {
             .hueRotation(.degrees(folder ? 210 : 0))
             .brightness(folder ? 0.2 : 0)
             .saturation(folder ? 1.2 : 1)
+    }
+
+    private var folderFromResourceValues: Bool {
+        let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey, .isVolumeKey])
+        return values?.isDirectory == true && values?.isPackage != true && values?.isVolume != true
     }
 }

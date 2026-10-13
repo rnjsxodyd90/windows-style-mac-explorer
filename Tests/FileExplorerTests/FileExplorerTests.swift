@@ -15,6 +15,9 @@ import Testing
     model.newFolder()
     model.newFolder()
     #expect(model.visible.map(\.name) == ["New folder", "New folder (2)", "a.txt"])
+    model.search = "folder (2)"
+    #expect(model.visible.map(\.name) == ["New folder (2)"])
+    model.search = ""
     #expect(uniqueURL("a.txt", in: dir).lastPathComponent == "a (2).txt")
 
     model.rename(dir.appending(path: "a.txt").path, to: "../escape.txt")
