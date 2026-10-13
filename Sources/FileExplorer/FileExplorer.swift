@@ -7,7 +7,7 @@ struct FileExplorerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        WindowGroup("File Explorer", id: "explorer") {
+        WindowGroup("Windows Style Mac Explorer", id: "explorer") {
             ExplorerView()
         }
         .defaultSize(width: 1150, height: 720)

@@ -1,8 +1,8 @@
-# Mac File Explorer
+# Windows Style Mac Explorer
 
 A native macOS file manager inspired by Windows 10 File Explorer. It brings the ribbon, breadcrumb address bar, navigation pane, yellow folders, preview pane, and familiar file operations to macOS.
 
-![Mac File Explorer walkthrough](assets/demo.gif)
+![Windows Style Mac Explorer walkthrough](assets/demo.gif)
 
 [Download the MP4 walkthrough](assets/demo.mp4)
 
@@ -25,8 +25,8 @@ A native macOS file manager inspired by Windows 10 File Explorer. It brings the 
 ## Run
 
 ```bash
-git clone https://github.com/rnjsxodyd90/mac-file-explorer.git
-cd mac-file-explorer
+git clone https://github.com/rnjsxodyd90/windows-style-mac-explorer.git
+cd windows-style-mac-explorer
 swift run
 ```
 
@@ -49,7 +49,7 @@ swift test
 
 ## Project status
 
-Mac File Explorer is an early native SwiftUI implementation. File operations currently run synchronously, so very large copies may temporarily block the interface.
+Windows Style Mac Explorer is an early native SwiftUI implementation. File operations currently run synchronously, so very large copies may temporarily block the interface.
 
 Contributions and bug reports are welcome.
 
